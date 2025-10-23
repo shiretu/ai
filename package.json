@@ -6,6 +6,7 @@
   "scripts": {
     "test": "node src/test.js",
     "train": "node src/llm.js",
+    "build-trading-network": "node src/trading-network.js",
     "train-python": "cd python && source venv/bin/activate && python3 python_trainer.py",
     "setup-python": "cd python && python3.11 -m venv venv && source venv/bin/activate && pip install -r requirements.txt",
     "test-python-hw": "cd python && source venv/bin/activate && python3 python_hw_test.py",
