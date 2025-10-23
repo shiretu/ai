@@ -1,0 +1,13 @@
+{
+  "name": "ai",
+  "version": "1.0.0",
+  "description": "A simple AI project",
+  "type": "commonjs",
+  "scripts": {
+    "test": "node src/test.js"
+  },
+  "devDependencies": {
+    "eslint": "^8.0.0",
+    "standard": "^17.0.0"
+  }
+}
