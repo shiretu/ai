@@ -19,7 +19,7 @@ class PythonLLMTrainer:
         self.training_data = None
         self.architecture = None
     
-    def load_training_data(self, filename='training_data.json'):
+    def load_training_data(self, filename='../training_data.json'):
         """Load training data exported from Node.js"""
         print(f"Loading training data from {filename}...")
         
@@ -33,7 +33,7 @@ class PythonLLMTrainer:
         
         return data
     
-    def load_model_architecture(self, filename='model_architecture.json'):
+    def load_model_architecture(self, filename='../model_architecture.json'):
         """Load model architecture exported from Node.js"""
         print(f"Loading model architecture from {filename}...")
         
@@ -127,7 +127,7 @@ class PythonLLMTrainer:
         print("Training completed!")
         return history
     
-    def save_model(self, filename='python_trained_model.h5'):
+    def save_model(self, filename='../python_trained_model.h5'):
         """Save the trained model"""
         if not self.model:
             raise ValueError("Model not trained yet.")
@@ -167,12 +167,12 @@ class PythonLLMTrainer:
 
 def main():
     # Check if data files exist
-    if not Path('training_data.json').exists():
+    if not Path('../training_data.json').exists():
         print("Error: training_data.json not found!")
         print("Run 'npm run train' first to generate the data.")
         return
     
-    if not Path('model_architecture.json').exists():
+    if not Path('../model_architecture.json').exists():
         print("Error: model_architecture.json not found!")
         print("Run 'npm run train' first to generate the architecture.")
         return

@@ -15,7 +15,7 @@ print("=" * 60)
 def load_data():
     """Load training data"""
     print("Loading training data...")
-    with open('training_data.json', 'r') as f:
+    with open('../training_data.json', 'r') as f:
         data = json.load(f)
     
     inputs = []

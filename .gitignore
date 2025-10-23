@@ -1,14 +1,10 @@
+# Node.js
 node_modules
 package-lock.json
 
-# Python virtual environment
-venv/
-__pycache__/
-*.pyc
-*.pyo
-
-# Python model files
-*.h5
-*.keras
 model_architecture.json
 training_data.json
+
+# Model outputs
+*.h5
+*.keras

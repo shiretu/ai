@@ -20,6 +20,10 @@ npm run setup-python
 
 # Train with GPU/Metal acceleration
 npm run train-python
+
+# Compare CPU vs GPU performance
+npm run compare-cpu-gpu
+npm run compare-comprehensive
 ```
 
 ## 📊 Workflow: Node.js → Python
@@ -58,7 +62,47 @@ This project demonstrates a powerful workflow:
 - Fibonacci-like: `[1,1,2,3,5] → 8`
 - Biased random sequences
 
-## 📁 Files Generated
+## 📁 Project Structure
+
+```
+├── src/                    # Node.js source files
+│   ├── llm.js             # Main LLM implementation
+│   ├── test.js            # Basic tests
+│   └── check-backend.js   # TensorFlow.js backend check
+├── python/                # Python training environment
+│   ├── python_trainer.py         # Main GPU trainer
+│   ├── cpu_vs_gpu_test.py        # Performance comparison
+│   ├── cpu_vs_gpu_comprehensive.py # Multi-size comparison
+│   ├── python_hw_test.py          # Hardware diagnostics
+│   ├── python_quick_check.py      # Quick GPU check
+│   ├── gpu_diagnostics.py         # Detailed GPU info
+│   ├── requirements.txt           # Python dependencies
+│   └── venv/                      # Virtual environment (auto-created)
+├── training_data.json      # Generated training samples
+├── model_architecture.json # Network structure for Python
+├── python_trained_model.h5 # Saved trained model
+└── package.json           # Node.js scripts and dependencies
+```
+
+## 📋 Available Scripts
+
+**Node.js:**
+- `npm run train` - Generate data and train in Node.js
+- `npm test` - Run basic tests
+
+**Python Setup:**
+- `npm run setup-python` - Create Python environment and install dependencies
+
+**Python Training:**
+- `npm run train-python` - Train with GPU acceleration
+- `npm run check-python` - Quick hardware/GPU check
+- `npm run test-python-hw` - Detailed hardware diagnostics
+
+**Performance Testing:**
+- `npm run compare-cpu-gpu` - Basic CPU vs GPU comparison
+- `npm run compare-comprehensive` - Multi-model-size comparison
+
+## 📊 Files Generated
 
 After running `npm run train`:
 
@@ -99,13 +143,24 @@ this.hiddenSize = 64  // More neurons
 
 ### Python Training Options
 ```python
-# In python_trainer.py
+# In python/python_trainer.py
 trainer.train(
     epochs=200,      # More training
     batch_size=64,   # Larger batches
     validation_split=0.3
 )
 ```
+
+## 🧪 Performance Analysis
+
+The project includes comprehensive CPU vs GPU comparison tools that show:
+
+- **Small models (1.5K params)**: CPU is 5x faster due to GPU overhead
+- **Medium models (26K params)**: CPU still wins, but gap narrows  
+- **Large models (431K+ params)**: GPU starts to show advantage
+- **Matrix operations**: GPU excels at 2000x2000+ operations (2.3x speedup)
+
+**Key Insight**: For small training datasets and models, CPU is often faster! GPU shines with larger workloads.
 
 ## 🎯 Use Cases
 
