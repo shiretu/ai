@@ -1,0 +1,377 @@
+{
+  "model_specification": {
+    "name": "trading_neural_network",
+    "version": "1.0",
+    "description": "Language-agnostic neural network for cryptocurrency trading decisions",
+    
+    "input_schema": {
+      "total_features": 1559,
+      "feature_groups": {
+        "candle_data": {
+          "start_index": 0,
+          "end_index": 960,
+          "shape": [120, 8],
+          "features": ["open", "high", "low", "close", "baseVolume", "quoteVolume", "timestamp", "candleColor"],
+          "normalization": "batch_norm",
+          "description": "OHLC + volume + timestamp + color for 120 consecutive candles"
+        },
+        "studies_data": {
+          "start_index": 960,
+          "end_index": 1320,
+          "shape": [120, 3],
+          "features": ["EMA12", "EMA26", "Signal9"],
+          "normalization": "batch_norm",
+          "description": "Technical indicators for 120 consecutive candles"
+        },
+        "patterns_data": {
+          "start_index": 1320,
+          "end_index": 1557,
+          "shape": [237],
+          "features": ["2_candle_patterns", "3_candle_patterns"],
+          "normalization": "batch_norm",
+          "description": "Detected candlestick patterns (119 + 118 sliding windows)"
+        },
+        "global_context": {
+          "start_index": 1557,
+          "end_index": 1559,
+          "shape": [2],
+          "features": ["candle_duration", "window_size"],
+          "normalization": "batch_norm",
+          "description": "Global parameters (duration=1min, window=120)"
+        }
+      }
+    },
+
+    "output_schema": {
+      "shape": [1],
+      "range": [-1, 1],
+      "activation": "tanh",
+      "interpretation": {
+        "1.0": "Strong BUY signal",
+        "0.0": "Neutral/uncertain",
+        "-1.0": "Strong SELL signal"
+      }
+    },
+
+    "architecture": {
+      "type": "hybrid_multi_branch",
+      "branches": [
+        {
+          "name": "temporal_branch",
+          "input_groups": ["candle_data", "studies_data"],
+          "layers": [
+            {
+              "type": "reshape",
+              "input_shape": [960],
+              "output_shape": [120, 8],
+              "target": "candle_data"
+            },
+            {
+              "type": "reshape", 
+              "input_shape": [360],
+              "output_shape": [120, 3],
+              "target": "studies_data"
+            },
+            {
+              "type": "batch_normalization",
+              "target": "both"
+            },
+            {
+              "type": "concatenate",
+              "axis": -1,
+              "output_shape": [120, 11]
+            },
+            {
+              "type": "lstm",
+              "units": 128,
+              "return_sequences": true,
+              "dropout": 0.2,
+              "recurrent_dropout": 0.2
+            },
+            {
+              "type": "lstm",
+              "units": 64,
+              "return_sequences": true,
+              "dropout": 0.2,
+              "recurrent_dropout": 0.2
+            },
+            {
+              "type": "attention",
+              "mechanism": "self_attention",
+              "implementation": {
+                "attention_dense": {
+                  "units": 1,
+                  "activation": "tanh"
+                },
+                "softmax_normalization": true,
+                "apply_to_sequence": true
+              }
+            },
+            {
+              "type": "global_average_pooling_1d",
+              "output_features": 64
+            }
+          ]
+        },
+        
+        {
+          "name": "pattern_branch",
+          "input_groups": ["patterns_data"],
+          "layers": [
+            {
+              "type": "batch_normalization"
+            },
+            {
+              "type": "dense",
+              "units": 128,
+              "activation": "relu"
+            },
+            {
+              "type": "dropout",
+              "rate": 0.3
+            },
+            {
+              "type": "dense",
+              "units": 64,
+              "activation": "relu"
+            },
+            {
+              "type": "dropout",
+              "rate": 0.3
+            },
+            {
+              "type": "dense",
+              "units": 32,
+              "activation": "relu",
+              "output_features": 32
+            }
+          ]
+        },
+
+        {
+          "name": "global_branch",
+          "input_groups": ["global_context"],
+          "layers": [
+            {
+              "type": "batch_normalization"
+            },
+            {
+              "type": "dense",
+              "units": 16,
+              "activation": "relu"
+            },
+            {
+              "type": "dense",
+              "units": 8,
+              "activation": "relu",
+              "output_features": 8
+            }
+          ]
+        }
+      ],
+
+      "fusion_network": {
+        "input_features": 104,
+        "input_source": ["temporal_branch:64", "pattern_branch:32", "global_branch:8"],
+        "layers": [
+          {
+            "type": "concatenate",
+            "axis": -1
+          },
+          {
+            "type": "dense",
+            "units": 256,
+            "activation": "relu"
+          },
+          {
+            "type": "batch_normalization"
+          },
+          {
+            "type": "dropout",
+            "rate": 0.4
+          },
+          {
+            "type": "dense",
+            "units": 128,
+            "activation": "relu"
+          },
+          {
+            "type": "batch_normalization"
+          },
+          {
+            "type": "dropout",
+            "rate": 0.4
+          },
+          {
+            "type": "residual_connection",
+            "implementation": {
+              "main_path": "previous_layer",
+              "shortcut_path": {
+                "type": "dense",
+                "units": 128,
+                "activation": "linear",
+                "input": "concatenated_features"
+              },
+              "operation": "add"
+            }
+          },
+          {
+            "type": "dense",
+            "units": 64,
+            "activation": "relu"
+          },
+          {
+            "type": "dropout",
+            "rate": 0.3
+          },
+          {
+            "type": "dense",
+            "units": 32,
+            "activation": "relu"
+          },
+          {
+            "type": "dropout",
+            "rate": 0.2
+          },
+          {
+            "type": "dense",
+            "units": 1,
+            "activation": "tanh",
+            "name": "trading_signal"
+          }
+        ]
+      }
+    },
+
+    "training_config": {
+      "optimizer": {
+        "type": "adam",
+        "learning_rate": 0.001,
+        "beta_1": 0.9,
+        "beta_2": 0.999,
+        "epsilon": 1e-7
+      },
+      "loss_function": "mean_squared_error",
+      "metrics": ["mean_absolute_error", "root_mean_squared_error"],
+      "batch_size": 32,
+      "epochs": 100,
+      "validation_split": 0.2,
+      "callbacks": {
+        "early_stopping": {
+          "monitor": "val_loss",
+          "patience": 15,
+          "restore_best_weights": true
+        },
+        "reduce_lr": {
+          "monitor": "val_loss",
+          "factor": 0.5,
+          "patience": 8,
+          "min_lr": 1e-6
+        },
+        "model_checkpoint": {
+          "filepath": "best_trading_model",
+          "monitor": "val_loss",
+          "save_best_only": true
+        }
+      }
+    },
+
+    "data_preprocessing": {
+      "normalization_strategy": {
+        "candle_data": {
+          "price_features": ["open", "high", "low", "close"],
+          "method": "min_max_scaling",
+          "range": [0, 1],
+          "per_sample": true
+        },
+        "volume_features": ["baseVolume", "quoteVolume"],
+        "method": "log_normalization",
+        "timestamp": {
+          "method": "cyclical_encoding",
+          "components": ["hour_of_day", "day_of_week"]
+        },
+        "candle_color": {
+          "method": "categorical",
+          "values": {"-1": "red", "0": "doji", "1": "green"}
+        }
+      },
+      "feature_engineering": {
+        "studies": {
+          "EMA12": "12_period_exponential_moving_average",
+          "EMA26": "26_period_exponential_moving_average", 
+          "Signal9": "9_period_ema_of_macd_line"
+        },
+        "patterns": {
+          "2_candle": ["hammer", "doji", "engulfing", "harami", "piercing"],
+          "3_candle": ["morning_star", "evening_star", "three_white_soldiers", "three_black_crows"]
+        }
+      }
+    },
+
+    "inference_config": {
+      "input_validation": {
+        "feature_count": 1559,
+        "required_ranges": {
+          "candle_data": "positive_numbers",
+          "studies_data": "real_numbers",
+          "patterns_data": "integer_patterns",
+          "global_context": "positive_integers"
+        }
+      },
+      "output_processing": {
+        "confidence_threshold": 0.3,
+        "trading_rules": {
+          "strong_buy": "output > 0.7",
+          "weak_buy": "0.3 < output <= 0.7",
+          "hold": "-0.3 <= output <= 0.3",
+          "weak_sell": "-0.7 <= output < -0.3",
+          "strong_sell": "output < -0.7"
+        }
+      },
+      "performance_targets": {
+        "latency_ms": 100,
+        "memory_mb": 512,
+        "throughput_samples_per_second": 1000
+      }
+    },
+
+    "model_metadata": {
+      "total_parameters": "~2800000",
+      "model_size_mb": "~45",
+      "training_time_estimate": "4-8 hours on modern GPU",
+      "supported_frameworks": [
+        "tensorflow",
+        "pytorch", 
+        "onnx",
+        "tensorrt",
+        "coreml",
+        "tflite"
+      ],
+      "supported_languages": [
+        "python",
+        "javascript",
+        "rust",
+        "cpp",
+        "java",
+        "swift",
+        "go"
+      ]
+    },
+
+    "validation_schema": {
+      "ground_truth_generation": {
+        "method": "actual_trading_simulation",
+        "validation_window": "60_minutes",
+        "return_calculation": "percentage_gain_loss",
+        "target_range": [-1, 1],
+        "mapping": "tanh_normalization"
+      },
+      "success_metrics": {
+        "sharpe_ratio": "target > 1.5",
+        "max_drawdown": "target < 0.15",
+        "win_rate": "target > 0.55",
+        "avg_return_per_trade": "target > 0.005"
+      }
+    }
+  }
+}
