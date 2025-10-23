@@ -2,9 +2,6 @@
 node_modules
 package-lock.json
 
-model_architecture.json
-training_data.json
-
 # Model outputs
 *.h5
 *.keras

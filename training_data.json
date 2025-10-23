@@ -1,0 +1,72 @@
+{
+    "metadata": {
+        "description": "Training data for BTC/USDC trading neural network with actual profit/loss outcomes",
+        "version": "2.0.0",
+        "created": "2025-10-24",
+        "total_samples": 3,
+        "feature_count": 1559,
+        "output_structure": {
+            "buy_outcome": "BUY order outcome: +1.0 (hit +0.7% target), -1.0 (hit -0.4% stop), 0.0 (no target hit)",
+            "sell_outcome": "SELL order outcome: +1.0 (hit +0.7% target), -1.0 (hit -0.4% stop), 0.0 (no target hit)",
+            "trading_rules": {
+                "profit_target": "0.7% (0.5% net after 0.2% fees)",
+                "stop_loss": "0.4% (0.2% net after 0.2% fees)",
+                "evaluation_logic": "Both BUY and SELL orders evaluated independently to completion - answers 'what if we only placed BUY?' and 'what if we only placed SELL?'"
+            }
+        },
+        "feature_structure": {
+            "candle_data": {
+                "range": "0-959",
+                "count": 960,
+                "description": "120 consecutive 1-minute candles, each with 8 features (OHLC, volume, timestamp, color, body_size)"
+            },
+            "studies_data": {
+                "range": "960-1319",
+                "count": 360,
+                "description": "Technical indicators for 120 candles: SMA, EMA, RSI for each candle"
+            },
+            "patterns_data": {
+                "range": "1320-1556",
+                "count": 237,
+                "description": "Candlestick pattern detection: 119 single patterns + 118 sliding window patterns"
+            },
+            "global_context": {
+                "range": "1557-1558",
+                "count": 2,
+                "description": "Global parameters: duration (1min) and window size (120)"
+            }
+        }
+    },
+    "training_data": [
+        {
+            "id": 1,
+            "timestamp": "2025-10-24T10:00:00Z",
+            "features": "an array of 1559 normalized feature valu es",
+            "outcomes": {
+                "buy_outcome": 1.0,
+                "sell_outcome": -1.0
+            },
+            "description": "BUY order would hit +0.7% target (profit), SELL order would hit -0.4% stop (loss) - both evaluated independently"
+        },
+        {
+            "id": 2,
+            "timestamp": "2025-10-24T10:02:00Z",
+            "features": "an array of 1559 normalized feature values",
+            "outcomes": {
+                "buy_outcome": -1.0,
+                "sell_outcome": 1.0
+            },
+            "description": "SELL order would hit +0.7% target (profit), BUY order would hit -0.4% stop (loss) - both evaluated independently"
+        },
+        {
+            "id": 3,
+            "timestamp": "2025-10-24T10:04:00Z",
+            "features": "an array of 1559 normalized feature values",
+            "outcomes": {
+                "buy_outcome": 0.0,
+                "sell_outcome": 0.0
+            },
+            "description": "Neither BUY nor SELL orders would hit their targets - both would remain within range"
+        }
+    ]
+}
