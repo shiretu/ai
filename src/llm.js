@@ -205,6 +205,96 @@ class SimpleLLM {
         }
     }
 
+    // Export training data for Python
+    exportTrainingData (numSamples = 10000, filename = 'training_data.json') {
+        console.log(`Generating ${numSamples} training samples for export...`)
+
+        const exportData = {
+            metadata: {
+                inputSize: this.inputSize,
+                outputSize: this.outputSize,
+                numSamples,
+                generated: new Date().toISOString()
+            },
+            samples: []
+        }
+
+        for (let i = 0; i < numSamples; i++) {
+            const pattern = Math.floor(Math.random() * 4)
+            let sequence
+
+            switch (pattern) {
+                case 0:
+                    sequence = this.generateArithmetic()
+                    break
+                case 1:
+                    sequence = this.generateRepeating()
+                    break
+                case 2:
+                    sequence = this.generateFibonacci()
+                    break
+                case 3:
+                    sequence = this.generateBiased()
+                    break
+            }
+
+            const input = sequence.slice(0, 5)
+            const target = sequence[5]
+
+            exportData.samples.push({
+                input,
+                target,
+                pattern
+            })
+        }
+
+        const fs = require('fs')
+        fs.writeFileSync(filename, JSON.stringify(exportData, null, 2))
+        console.log(`Training data exported to ${filename}`)
+        return exportData
+    }
+
+    // Export model architecture for Python
+    exportModelArchitecture (filename = 'model_architecture.json') {
+        const architecture = {
+            metadata: {
+                framework: 'tensorflow',
+                inputShape: [this.inputSize],
+                outputShape: [this.outputSize],
+                created: new Date().toISOString()
+            },
+            layers: [
+                {
+                    type: 'Dense',
+                    units: this.hiddenSize,
+                    activation: 'relu',
+                    inputShape: [this.inputSize]
+                },
+                {
+                    type: 'Dense',
+                    units: this.hiddenSize,
+                    activation: 'relu'
+                },
+                {
+                    type: 'Dense',
+                    units: this.outputSize,
+                    activation: 'softmax'
+                }
+            ],
+            compile: {
+                optimizer: 'adam',
+                loss: 'sparse_categorical_crossentropy',
+                metrics: ['accuracy'],
+                learningRate: 0.001
+            }
+        }
+
+        const fs = require('fs')
+        fs.writeFileSync(filename, JSON.stringify(architecture, null, 2))
+        console.log(`Model architecture exported to ${filename}`)
+        return architecture
+    }
+
     // Test the model with some examples
     runTests () {
         console.log('\n=== Testing the trained model ===')
@@ -233,14 +323,18 @@ async function main () {
     const llm = new SimpleLLM()
     llm.buildModel()
 
+    // Export data and architecture for Python
+    console.log('\n=== Exporting for Python ===')
+    llm.exportTrainingData(10000, 'training_data.json')
+    llm.exportModelArchitecture('model_architecture.json')
+
     await llm.trainModel(50) // Train for 50 epochs
 
     llm.runTests()
 
     console.log('\nYou can now use llm.predict([1, 2, 3, 4, 5]) to predict the next number!')
-}
-
-// Export for use in other files
+    console.log('Data exported for Python training - check training_data.json and model_architecture.json')
+}// Export for use in other files
 module.exports = { SimpleLLM }
 
 // Run if this file is executed directly

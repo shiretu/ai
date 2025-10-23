@@ -5,7 +5,11 @@
   "type": "commonjs",
   "scripts": {
     "test": "node src/test.js",
-    "train": "node src/llm.js"
+    "train": "node src/llm.js",
+    "train-python": "source venv/bin/activate && python3 python_trainer.py",
+    "setup-python": "python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt",
+    "test-python-hw": "source venv/bin/activate && python3 python_hw_test.py",
+    "check-python": "source venv/bin/activate && python3 python_quick_check.py"
   },
   "dependencies": {
     "@tensorflow/tfjs": "^4.0.0"

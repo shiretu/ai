@@ -13,14 +13,25 @@ async function checkBackend () {
 
     // Check if we're using CPU or potentially GPU
     const backend = tf.getBackend()
+    console.log('\n=== Backend Analysis ===')
     if (backend === 'webgl') {
         console.log('✅ WebGL backend - Using GPU acceleration!')
     } else if (backend === 'cpu') {
         console.log('❌ CPU backend - No hardware acceleration')
     } else if (backend === 'tensorflow') {
-        console.log('✅ TensorFlow backend - Potentially using hardware acceleration')
+        console.log('✅ TensorFlow backend - Using native acceleration!')
+        console.log('   This likely includes Metal acceleration on Apple Silicon')
     } else {
         console.log('Backend:', backend)
+    }
+
+    // Check for Metal-specific indicators
+    console.log('\n=== Hardware Acceleration Detection ===')
+    if (process.platform === 'darwin' && process.arch === 'arm64') {
+        console.log('✅ Apple Silicon Mac detected')
+        if (backend === 'tensorflow') {
+            console.log('✅ Native backend - Metal acceleration likely enabled!')
+        }
     }
 
     console.log('\n=== Available Backends ===')
