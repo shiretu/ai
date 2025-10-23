@@ -10,3 +10,5 @@ __pycache__/
 # Python model files
 *.h5
 *.keras
+model_architecture.json
+training_data.json
