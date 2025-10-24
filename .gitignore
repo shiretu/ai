@@ -5,3 +5,4 @@ package-lock.json
 # Model outputs
 *.h5
 *.keras
+server.log

@@ -8,7 +8,7 @@
     "train": "node src/llm.js",
     "build-trading-network": "node src/trading-network.js",
     "training-server": "node src/training-server.js",
-    "training-client": "node src/training-client.js",
+    "test-client": "node src/test-client.js",
     "train-python": "cd python && source venv/bin/activate && python3 python_trainer.py",
     "setup-python": "cd python && python3.11 -m venv venv && source venv/bin/activate && pip install -r requirements.txt",
     "test-python-hw": "cd python && source venv/bin/activate && python3 python_hw_test.py",
