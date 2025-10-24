@@ -122,7 +122,6 @@ class TradingTrainingServer {
                     ws.send(JSON.stringify({ type: 'error', message: error.message }))
                 }
             })
-            ws.on('close', () => { console.log('WebSocket connection closed') })
             ws.send(JSON.stringify({ type: 'connected', message: 'Training server ready', modelParams: this.#model.countParams(), trainingStats: this.#trainingStats }))
         })
         console.log(`Training server running on port ${this.#port}`)
