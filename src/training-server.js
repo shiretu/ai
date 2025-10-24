@@ -186,7 +186,16 @@ class TradingTrainingServer {
 
             ws.on('message', async (data) => {
                 try {
-                    await this.handleRequest(ws, data)
+                    await this.handleRequest(JSON.parse(data.toString()), (error, result) => {
+                        if (error) {
+                            ws.send(JSON.stringify({
+                                type: 'error',
+                                message: error.message
+                            }))
+                        } else {
+                            ws.send(JSON.stringify(result))
+                        }
+                    })
                 } catch (error) {
                     console.error('❌ Error processing training data:', error)
                     ws.send(JSON.stringify({
@@ -213,124 +222,89 @@ class TradingTrainingServer {
     /**
      * Handle incoming WebSocket requests
      */
-    async handleRequest (ws, data) {
-        const message = JSON.parse(data.toString())
+    async handleRequest (message, callback) {
+        try {
+            switch (message.type) {
+                case 'train':
+                    await this.trainOnSample(message.sample, callback)
+                    break
 
-        switch (message.type) {
-            case 'train':
-                await this.trainOnDataset(ws, message.dataset)
-                break
+                case 'save':
+                    callback(null, await this.saveModel())
+                    break
 
-            case 'save':
-                await this.saveModel(ws)
-                break
+                case 'predict':
+                    callback(null, await this.makePrediction(message.features))
+                    break
 
-            case 'predict':
-                await this.makePrediction(ws, message.features)
-                break
+                case 'stats':
+                    callback(null, this.getStats())
+                    break
 
-            case 'stats':
-                this.sendStats(ws)
-                break
-
-            default:
-                ws.send(JSON.stringify({
-                    type: 'error',
-                    message: `Unknown message type: ${message.type}`
-                }))
+                default:
+                    callback(new Error(`Unknown message type: ${message.type}`))
+            }
+        } catch (error) {
+            callback(error)
         }
     }
 
     /**
-     * Train on a single dataset
+     * Train on a single sample
      */
-    async trainOnDataset (ws, dataset) {
-        console.log(`🎯 Training on dataset with ${dataset.length} samples`)
-
-        if (!dataset || dataset.length === 0) {
-            throw new Error('Dataset is empty or invalid')
-        }
-
-        // Validate dataset format
-        this.validateDataset(dataset)
+    async trainOnSample (sample, callback) {
+        console.log('🎯 Training on single sample')
 
         // Prepare training data
-        const { features, labels } = this.prepareTrainingData(dataset)
+        const { features, labels } = this.prepareSampleData(sample)
 
         // Start training
         const startTime = Date.now()
 
-        ws.send(JSON.stringify({
+        callback(null, {
             type: 'training_started',
-            samples: dataset.length,
+            samples: 1,
             timestamp: new Date().toISOString()
-        }))
+        })
 
         try {
             // Train the model
             const history = await this.model.fit(features, labels, {
                 epochs: this.config.epochs,
-                batchSize: Math.min(this.config.batchSize, dataset.length),
+                batchSize: 1,
                 verbose: 0,
                 callbacks: {
                     onEpochEnd: (epoch, logs) => {
-                        ws.send(JSON.stringify({
+                        callback(null, {
                             type: 'training_progress',
                             epoch: epoch + 1,
                             loss: logs.loss,
                             mae: logs.mae
-                        }))
+                        })
                     }
                 }
             })
 
             // Update stats
-            this.updateTrainingStats(dataset.length, history.history.loss[0])
+            this.updateTrainingStats(1, history.history.loss[0])
 
             // Training completed
             const duration = Date.now() - startTime
 
-            ws.send(JSON.stringify({
+            callback(null, {
                 type: 'training_completed',
-                samples: dataset.length,
+                samples: 1,
                 loss: history.history.loss[0],
                 mae: history.history.mae[0],
                 duration,
                 totalSamples: this.trainingStats.totalSamples
-            }))
-
-            console.log(`✅ Training completed in ${duration}ms, Loss: ${history.history.loss[0].toFixed(6)}`)
+            })
+        } catch (error) {
+            callback(error)
         } finally {
             // Clean up tensors
             features.dispose()
             labels.dispose()
-        }
-    }
-
-    /**
-     * Validate dataset format
-     */
-    validateDataset (dataset) {
-        for (let i = 0; i < dataset.length; i++) {
-            const sample = dataset[i]
-
-            if (!sample.features || typeof sample.features !== 'object') {
-                throw new Error(`Sample ${i}: features must be an object`)
-            }
-
-            // Validate nested feature structure
-            const flatFeatures = this.flattenFeatures(sample.features)
-            if (flatFeatures.length !== 2043) {
-                throw new Error(`Sample ${i}: features must have exactly 2043 values, got ${flatFeatures.length}`)
-            }
-
-            if (!sample.outcomes || typeof sample.outcomes !== 'object') {
-                throw new Error(`Sample ${i}: outcomes must be an object`)
-            }
-
-            if (typeof sample.outcomes.grossBuy !== 'number' || typeof sample.outcomes.grossSell !== 'number') {
-                throw new Error(`Sample ${i}: grossBuy and grossSell must be numbers`)
-            }
         }
     }
 
@@ -373,20 +347,15 @@ class TradingTrainingServer {
     }
 
     /**
-     * Prepare training data tensors
+     * Prepare single sample data tensors
      */
-    prepareTrainingData (dataset) {
-        const features = []
-        const labels = []
-
-        for (const sample of dataset) {
-            features.push(this.flattenFeatures(sample.features))
-            labels.push([sample.outcomes.grossBuy, sample.outcomes.grossSell])
-        }
+    prepareSampleData (sample) {
+        const flatFeatures = this.flattenFeatures(sample.features)
+        const labels = [sample.outcomes.grossBuy, sample.outcomes.grossSell]
 
         return {
-            features: tf.tensor2d(features),
-            labels: tf.tensor2d(labels)
+            features: tf.tensor2d([flatFeatures]),
+            labels: tf.tensor2d([labels])
         }
     }
 
@@ -410,14 +379,13 @@ class TradingTrainingServer {
         try {
             console.log('💾 Saving model to disk...')
             await this.model.save(`file://${path.resolve(this.config.modelSavePath)}`)
+            console.log('✅ Model saved successfully')
 
-            ws.send(JSON.stringify({
+            return {
                 type: 'model_saved',
                 path: this.config.modelSavePath,
                 timestamp: new Date().toISOString()
-            }))
-
-            console.log('✅ Model saved successfully')
+            }
         } catch (error) {
             throw new Error(`Failed to save model: ${error.message}`)
         }
@@ -426,7 +394,7 @@ class TradingTrainingServer {
     /**
      * Make prediction
      */
-    async makePrediction (ws, features) {
+    async makePrediction (features) {
         // Handle both nested object and flat array formats
         let flatFeatures
         if (Array.isArray(features)) {
@@ -447,29 +415,31 @@ class TradingTrainingServer {
         const prediction = this.model.predict(input)
         const result = await prediction.data()
 
-        ws.send(JSON.stringify({
+        const ret = {
             type: 'prediction',
             grossBuy: result[0],
             grossSell: result[1],
             decision: result[0] > result[1] ? 'BUY' : (result[1] > result[0] ? 'SELL' : 'HOLD'),
             confidence: Math.abs(result[0] - result[1])
-        }))
+        }
 
         // Clean up
         input.dispose()
         prediction.dispose()
+
+        return ret
     }
 
     /**
      * Send training statistics
      */
-    sendStats (ws) {
-        ws.send(JSON.stringify({
+    getStats (ws) {
+        return {
             type: 'stats',
             stats: this.trainingStats,
             modelParams: this.model.countParams(),
             config: this.config
-        }))
+        }
     }
 }
 
