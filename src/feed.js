@@ -32,30 +32,30 @@ const createTrainRequest = (samplesCount) => {
     }
     for (let i = 0; i < samplesCount; i++) {
         sampleNum++
-        // Create hardcoded sample data with slight variations
-        const basePrice = 50000 + (sampleNum * 100)
-        const variation = sampleNum * 0.1
+        // Create hardcoded sample data with slight variations (normalized)
+        const basePrice = 50 + (sampleNum * 0.1) // Scale down from 50000 to 50
+        const variation = sampleNum * 0.001 // Much smaller variation
 
         result.samples.push({
             features: {
                 candles: {
                     opens: new Array(120).fill(basePrice),
-                    highs: new Array(120).fill(basePrice + 500),
-                    lows: new Array(120).fill(basePrice - 500),
-                    closes: new Array(120).fill(basePrice + (sampleNum * 50)),
-                    volumes: new Array(120).fill(100 + sampleNum * 10),
-                    timestamps: new Array(120).fill(Date.now()),
+                    highs: new Array(120).fill(basePrice + 5), // Scale down from 500 to 5
+                    lows: new Array(120).fill(basePrice - 5), // Scale down from 500 to 5
+                    closes: new Array(120).fill(basePrice + (sampleNum * 0.05)), // Scale down
+                    volumes: new Array(120).fill(1 + sampleNum * 0.01), // Scale down volumes
+                    timestamps: new Array(120).fill(sampleNum), // Use relative timestamps instead of actual unix time
                     colors: new Array(120).fill(sampleNum % 2 === 0 ? 1 : -1),
-                    bodySizes: new Array(120).fill(200 + sampleNum * 100)
+                    bodySizes: new Array(120).fill(2 + sampleNum * 0.1) // Scale down body sizes
                 },
                 studies: {
-                    sma9: new Array(120).fill(basePrice + 100),
-                    sma12: new Array(120).fill(basePrice + 50),
+                    sma9: new Array(120).fill(basePrice + 1),
+                    sma12: new Array(120).fill(basePrice + 0.5),
                     sma21: new Array(120).fill(basePrice),
-                    ema9: new Array(120).fill(basePrice + 150),
-                    ema12: new Array(120).fill(basePrice + 100),
-                    ema21: new Array(120).fill(basePrice + 50),
-                    rsi14: new Array(120).fill(50 + sampleNum * 5)
+                    ema9: new Array(120).fill(basePrice + 1.5),
+                    ema12: new Array(120).fill(basePrice + 1),
+                    ema21: new Array(120).fill(basePrice + 0.5),
+                    rsi14: new Array(120).fill(50 + sampleNum * 0.5) // Keep RSI in 0-100 range
                 },
                 patterns: {
                     single: new Array(119).fill(0),
@@ -85,7 +85,7 @@ const work = async () => {
     console.log(await doRequest(ws, createTrainRequest(10)))
     console.log(await doRequest(ws, createTrainRequest(100)))
     console.log(await doRequest(ws, createTrainRequest(1000)))
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 10; i++) {
         console.log(await doRequest(ws, createTrainRequest(5000)))
     }
     console.log(JSON.stringify(await doRequest(ws, { type: 'stats' })))
