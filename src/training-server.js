@@ -52,6 +52,9 @@ class TradingTrainingServer {
      */
     async loadOrCreateModel () {
         try {
+            // Load architecture configuration
+            await this.loadArchitecture()
+
             // Try to load existing model
             if (await this.modelExists()) {
                 console.log('📁 Loading existing model from disk...')
@@ -74,6 +77,24 @@ class TradingTrainingServer {
     }
 
     /**
+     * Load network architecture from JSON file
+     */
+    async loadArchitecture () {
+        const architecturePath = path.resolve('./network_architecture.json')
+
+        try {
+            const architectureData = await fs.readFile(architecturePath, 'utf8')
+            this.architecture = JSON.parse(architectureData)
+            console.log(`📐 Architecture loaded: ${this.architecture.input_features} → ${this.architecture.output_features}`)
+        } catch (error) {
+            console.error('❌ FATAL: network_architecture.json is required but could not be loaded')
+            console.error(`   Path: ${architecturePath}`)
+            console.error(`   Error: ${error.message}`)
+            throw new Error('network_architecture.json is required - server cannot start without it')
+        }
+    }
+
+    /**
      * Check if model file exists
      */
     async modelExists () {
@@ -86,70 +107,71 @@ class TradingTrainingServer {
     }
 
     /**
-     * Create new neural network model
+     * Create model from loaded architecture JSON
      */
     createModel () {
         console.log('🧠 Building neural network architecture...')
+        const layerFactory = {
+            dense: (config, isFirstLayer) => {
+                const layerConfig = {
+                    units: config.units,
+                    activation: config.activation
+                }
 
-        const model = tf.sequential({
-            layers: [
-                // Input layer
-                tf.layers.dense({
-                    inputShape: [2043],
-                    units: 512,
-                    activation: 'relu',
-                    name: 'temporal_processing'
-                }),
-                tf.layers.dropout({ rate: 0.3 }),
+                // Add input shape for first layer
+                if (isFirstLayer) {
+                    layerConfig.inputShape = [this.architecture.input_features]
+                }
 
-                // Hidden layers
-                tf.layers.dense({
-                    units: 256,
-                    activation: 'relu',
-                    name: 'pattern_processing'
-                }),
-                tf.layers.dropout({ rate: 0.3 }),
+                // Add name if specified
+                if (config.name) {
+                    layerConfig.name = config.name
+                }
 
-                tf.layers.dense({
-                    units: 128,
-                    activation: 'relu',
-                    name: 'feature_fusion'
-                }),
-                tf.layers.dropout({ rate: 0.3 }),
+                return tf.layers.dense(layerConfig)
+            },
+            dropout: (config) => tf.layers.dropout({ rate: config.rate })
+        }
 
-                tf.layers.dense({
-                    units: 64,
-                    activation: 'relu',
-                    name: 'decision_processing'
-                }),
-                tf.layers.dropout({ rate: 0.2 }),
-
-                tf.layers.dense({
-                    units: 32,
-                    activation: 'relu',
-                    name: 'final_processing'
-                }),
-
-                // Output layer - 2 outputs for grossBuy and grossSell
-                tf.layers.dense({
-                    units: 2,
-                    activation: 'linear', // Linear for regression (-1 to +1 range)
-                    name: 'trading_outcomes'
-                })
-            ]
+        return tf.sequential({
+            layers: this.architecture.layers.map((layerConfig, index) => {
+                const factoryFunc = layerFactory[layerConfig.type]
+                if (!factoryFunc) {
+                    console.warn(`⚠️  Unknown layer type: ${layerConfig.type}, skipping`)
+                    return null
+                }
+                return factoryFunc(layerConfig, index === 0)
+            }).filter(layer => layer !== null)
         })
-
-        return model
     }
 
     /**
      * Compile model for training
      */
     compileModel () {
+        // Use optimizer from architecture or fallback to config
+        let optimizer
+        if (this.architecture && this.architecture.optimizer) {
+            const optimizerConfig = this.architecture.optimizer
+            switch (optimizerConfig.type) {
+                case 'adam':
+                    optimizer = tf.train.adam(optimizerConfig.learning_rate || 0.001)
+                    break
+                default:
+                    optimizer = tf.train.adam(this.config.learningRate)
+            }
+        } else {
+            optimizer = tf.train.adam(this.config.learningRate)
+        }
+
+        // Use loss and metrics from architecture or fallback to defaults
+        const loss = this.architecture?.loss || 'meanSquaredError'
+        const metrics = this.architecture?.metrics || ['mae']
+
         this.model.compile({
-            optimizer: tf.train.adam(this.config.learningRate),
-            loss: 'meanSquaredError',
-            metrics: ['mae']
+            optimizer,
+            loss,
+            metrics
         })
     }
 
@@ -164,7 +186,7 @@ class TradingTrainingServer {
 
             ws.on('message', async (data) => {
                 try {
-                    await this.handleTrainingData(ws, data)
+                    await this.handleRequest(ws, data)
                 } catch (error) {
                     console.error('❌ Error processing training data:', error)
                     ws.send(JSON.stringify({
@@ -189,9 +211,9 @@ class TradingTrainingServer {
     }
 
     /**
-     * Handle incoming training data
+     * Handle incoming WebSocket requests
      */
-    async handleTrainingData (ws, data) {
+    async handleRequest (ws, data) {
         const message = JSON.parse(data.toString())
 
         switch (message.type) {
