@@ -29,11 +29,13 @@ class TradingTrainingServer {
         debug: false // Debug flag for training stats logging
     } /** @type {{learningRate:number,batchSize:number,epochs:number,validationSplit:number,modelName:string,debug:boolean}} */
 
-    #architecture = null /** @type {any} */
     #modelRootPath = path.resolve(path.join(__dirname, '..', 'models', this.#config.modelName)) /** @type {string} */
     #architecturePath = path.join(this.#modelRootPath, 'architecture.json') /** @type {string} */
+    #optimizersPath = path.resolve(path.join(__dirname, '..', 'models', 'optimizers.json')) /** @type {string} */
     #tfModelFolder = path.join(this.#modelRootPath, 'tf') /** @type {string} */
     #tfModelPath = path.join(this.#tfModelFolder, 'model.json') /** @type {string} */
+    #optimizers = require(this.#optimizersPath) /** @type {any} */
+    #architecture = require(this.#architecturePath) /** @type {any} */
 
     /**
      * Create a new instance of the TradingTrainingServer
@@ -57,13 +59,37 @@ class TradingTrainingServer {
 
     async #loadOrCreateModel () {
         try {
-            this.#architecture = JSON.parse(await fs.readFile(this.#architecturePath, 'utf8'))
+            // Merge optimizer defaults with explicit parameters
+            this.#mergeOptimizerDefaults()
+
             this.#model = await tf.loadLayersModel(`file://${this.#tfModelPath}`)
         } catch (error) {
             this.#model = this.#createModel()
         }
         this.#compileModel()
         console.log(`Model with ${this.#model.countParams()} parameters activated`)
+    }
+
+    #mergeOptimizerDefaults () {
+        const optimizerType = this.#architecture.optimizer.type
+
+        if (!this.#optimizers[optimizerType]) {
+            throw new Error(`Unknown optimizer type: ${optimizerType}`)
+        }
+
+        // Start with defaults from optimizers.json
+        const defaults = { ...this.#optimizers[optimizerType] }
+
+        // Merge any explicit parameters from architecture.json
+        this.#architecture.optimizer = {
+            type: optimizerType,
+            ...defaults,
+            ...this.#architecture.optimizer
+        }
+
+        if (this.#config.debug) {
+            console.log('[DEBUG] Merged optimizer config:', this.#architecture.optimizer)
+        }
     }
 
     #createModel () {
@@ -102,11 +128,50 @@ class TradingTrainingServer {
     }
 
     #compileModel () {
+        const optimizerConfig = this.#architecture.optimizer
+
         const optimizerFactory = {
-            adam: (learningRate) => tf.train.adam(learningRate)
+            adam: (config) => tf.train.adam(
+                config.learning_rate,
+                config.beta1,
+                config.beta2,
+                config.epsilon
+            ),
+            sgd: (config) => tf.train.sgd(
+                config.learning_rate,
+                config.momentum
+            ),
+            rmsprop: (config) => tf.train.rmsprop(
+                config.learning_rate,
+                config.decay,
+                config.momentum,
+                config.epsilon
+            ),
+            adagrad: (config) => tf.train.adagrad(
+                config.learning_rate,
+                config.epsilon
+            ),
+            adadelta: (config) => tf.train.adadelta(
+                config.learning_rate,
+                config.rho,
+                config.epsilon
+            ),
+            adamax: (config) => tf.train.adamax(
+                config.learning_rate,
+                config.beta1,
+                config.beta2,
+                config.epsilon,
+                config.decay
+            ),
+            momentum: (config) => tf.train.momentum(
+                config.learning_rate,
+                config.momentum,
+                config.use_nesterov
+            )
         }
+
         this.#model.compile({
-            optimizer: optimizerFactory[this.#architecture.optimizer.type](this.#architecture.optimizer.learning_rate),
+            optimizer: optimizerFactory[optimizerConfig.type](optimizerConfig),
             loss: this.#architecture.loss,
             metrics: this.#architecture.metrics
         })

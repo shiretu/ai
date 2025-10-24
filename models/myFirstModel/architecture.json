@@ -56,8 +56,7 @@
     }
   ],
   "optimizer": {
-    "type": "adam",
-    "learning_rate": 0.001
+    "type": "adam"
   },
   "loss": "meanSquaredError",
   "metrics": [
