@@ -95,7 +95,7 @@ class TradingTrainingServer {
             layers: [
                 // Input layer
                 tf.layers.dense({
-                    inputShape: [1559],
+                    inputShape: [2043],
                     units: 512,
                     activation: 'relu',
                     name: 'temporal_processing'
@@ -130,7 +130,7 @@ class TradingTrainingServer {
                     name: 'final_processing'
                 }),
 
-                // Output layer - 2 outputs for buy_outcome and sell_outcome
+                // Output layer - 2 outputs for grossBuy and grossSell
                 tf.layers.dense({
                     units: 2,
                     activation: 'linear', // Linear for regression (-1 to +1 range)
@@ -292,22 +292,62 @@ class TradingTrainingServer {
         for (let i = 0; i < dataset.length; i++) {
             const sample = dataset[i]
 
-            if (!sample.features || !Array.isArray(sample.features)) {
-                throw new Error(`Sample ${i}: features must be an array`)
+            if (!sample.features || typeof sample.features !== 'object') {
+                throw new Error(`Sample ${i}: features must be an object`)
             }
 
-            if (sample.features.length !== 1559) {
-                throw new Error(`Sample ${i}: features must have exactly 1559 values, got ${sample.features.length}`)
+            // Validate nested feature structure
+            const flatFeatures = this.flattenFeatures(sample.features)
+            if (flatFeatures.length !== 2043) {
+                throw new Error(`Sample ${i}: features must have exactly 2043 values, got ${flatFeatures.length}`)
             }
 
             if (!sample.outcomes || typeof sample.outcomes !== 'object') {
                 throw new Error(`Sample ${i}: outcomes must be an object`)
             }
 
-            if (typeof sample.outcomes.buy !== 'number' || typeof sample.outcomes.sell !== 'number') {
-                throw new Error(`Sample ${i}: buy and sell must be numbers`)
+            if (typeof sample.outcomes.grossBuy !== 'number' || typeof sample.outcomes.grossSell !== 'number') {
+                throw new Error(`Sample ${i}: grossBuy and grossSell must be numbers`)
             }
         }
+    }
+
+    /**
+     * Flatten nested features into a single array
+     */
+    flattenFeatures (features) {
+        return [
+            // Candles: 8 arrays × 120 = 960 features
+            ...features.candles.opens,
+            ...features.candles.highs,
+            ...features.candles.lows,
+            ...features.candles.closes,
+            ...features.candles.volumes,
+            ...features.candles.timestamps,
+            ...features.candles.colors,
+            ...features.candles.bodySizes,
+
+            // Studies: 7 arrays × 120 = 840 features
+            ...features.studies.sma9,
+            ...features.studies.sma12,
+            ...features.studies.sma21,
+            ...features.studies.ema9,
+            ...features.studies.ema12,
+            ...features.studies.ema21,
+            ...features.studies.rsi14,
+
+            // Patterns: 237 features
+            ...features.patterns.single,
+            ...features.patterns.sliding,
+
+            // Global: 6 features
+            features.global.candleDuration,
+            features.global.windowSize,
+            features.global.grossProfitTarget,
+            features.global.grossStopLoss,
+            features.global.positionSize,
+            features.global.fees
+        ]
     }
 
     /**
@@ -318,8 +358,8 @@ class TradingTrainingServer {
         const labels = []
 
         for (const sample of dataset) {
-            features.push(sample.features)
-            labels.push([sample.outcomes.buy, sample.outcomes.sell])
+            features.push(this.flattenFeatures(sample.features))
+            labels.push([sample.outcomes.grossBuy, sample.outcomes.grossSell])
         }
 
         return {
@@ -365,18 +405,30 @@ class TradingTrainingServer {
      * Make prediction
      */
     async makePrediction (ws, features) {
-        if (!features || features.length !== 1559) {
-            throw new Error('Features must be an array of exactly 1559 values')
+        // Handle both nested object and flat array formats
+        let flatFeatures
+        if (Array.isArray(features)) {
+            if (features.length !== 2043) {
+                throw new Error('Features array must have exactly 2043 values')
+            }
+            flatFeatures = features
+        } else if (typeof features === 'object') {
+            flatFeatures = this.flattenFeatures(features)
+            if (flatFeatures.length !== 2043) {
+                throw new Error('Features object must flatten to exactly 2043 values')
+            }
+        } else {
+            throw new Error('Features must be an array or nested object')
         }
 
-        const input = tf.tensor2d([features])
+        const input = tf.tensor2d([flatFeatures])
         const prediction = this.model.predict(input)
         const result = await prediction.data()
 
         ws.send(JSON.stringify({
             type: 'prediction',
-            buy: result[0],
-            sell: result[1],
+            grossBuy: result[0],
+            grossSell: result[1],
             decision: result[0] > result[1] ? 'BUY' : (result[1] > result[0] ? 'SELL' : 'HOLD'),
             confidence: Math.abs(result[0] - result[1])
         }))

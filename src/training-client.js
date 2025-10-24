@@ -65,8 +65,8 @@ class TrainingClient {
 
             case 'prediction':
                 console.log('🔮 Prediction:')
-                console.log(`   BUY: ${message.buy.toFixed(4)}`)
-                console.log(`   SELL: ${message.sell.toFixed(4)}`)
+                console.log(`   Gross BUY: ${message.grossBuy.toFixed(4)}`)
+                console.log(`   Gross SELL: ${message.grossSell.toFixed(4)}`)
                 console.log(`   Decision: ${message.decision}`)
                 console.log(`   Confidence: ${message.confidence.toFixed(4)}`)
                 break
@@ -146,27 +146,123 @@ async function example () {
         // Wait a moment for connection to stabilize
         await new Promise(resolve => setTimeout(resolve, 1000))
 
-        // Example training dataset
+        // Example training dataset with nested feature structure
         const exampleDataset = [
             {
-                features: new Array(1559).fill(0), // Replace with real features
+                features: {
+                    candles: {
+                        opens: new Array(120).fill(50000),
+                        highs: new Array(120).fill(51000),
+                        lows: new Array(120).fill(49000),
+                        closes: new Array(120).fill(50500),
+                        volumes: new Array(120).fill(100),
+                        timestamps: new Array(120).fill(Date.now()),
+                        colors: new Array(120).fill(1),
+                        bodySizes: new Array(120).fill(500)
+                    },
+                    studies: {
+                        sma9: new Array(120).fill(50200),
+                        sma12: new Array(120).fill(50100),
+                        sma21: new Array(120).fill(50000),
+                        ema9: new Array(120).fill(50250),
+                        ema12: new Array(120).fill(50150),
+                        ema21: new Array(120).fill(50050),
+                        rsi14: new Array(120).fill(55)
+                    },
+                    patterns: {
+                        single: new Array(119).fill(0),
+                        sliding: new Array(118).fill(0)
+                    },
+                    global: {
+                        candleDuration: 1,
+                        windowSize: 120,
+                        grossProfitTarget: 0.7,
+                        grossStopLoss: 0.4,
+                        positionSize: 100,
+                        fees: 0.2
+                    }
+                },
                 outcomes: {
-                    buy: 1.0, // BUY hit target
-                    sell: -1.0 // SELL hit stop
+                    grossBuy: 0.73, // Gross profit with overshoot
+                    grossSell: -0.47 // Gross loss with overshoot
                 }
             },
             {
-                features: new Array(1559).fill(0.1), // Replace with real features
+                features: {
+                    candles: {
+                        opens: new Array(120).fill(51000),
+                        highs: new Array(120).fill(52000),
+                        lows: new Array(120).fill(50000),
+                        closes: new Array(120).fill(50200),
+                        volumes: new Array(120).fill(120),
+                        timestamps: new Array(120).fill(Date.now()),
+                        colors: new Array(120).fill(-1),
+                        bodySizes: new Array(120).fill(800)
+                    },
+                    studies: {
+                        sma9: new Array(120).fill(50800),
+                        sma12: new Array(120).fill(50700),
+                        sma21: new Array(120).fill(50600),
+                        ema9: new Array(120).fill(50850),
+                        ema12: new Array(120).fill(50750),
+                        ema21: new Array(120).fill(50650),
+                        rsi14: new Array(120).fill(45)
+                    },
+                    patterns: {
+                        single: new Array(119).fill(0),
+                        sliding: new Array(118).fill(0)
+                    },
+                    global: {
+                        candleDuration: 1,
+                        windowSize: 120,
+                        grossProfitTarget: 0.7,
+                        grossStopLoss: 0.4,
+                        positionSize: 100,
+                        fees: 0.2
+                    }
+                },
                 outcomes: {
-                    buy: -1.0, // BUY hit stop
-                    sell: 1.0 // SELL hit target
+                    grossBuy: -0.18, // Gross loss with undershoot
+                    grossSell: 0.51 // Gross profit with overshoot
                 }
             },
             {
-                features: new Array(1559).fill(0.2), // Replace with real features
+                features: {
+                    candles: {
+                        opens: new Array(120).fill(50500),
+                        highs: new Array(120).fill(50800),
+                        lows: new Array(120).fill(50200),
+                        closes: new Array(120).fill(50550),
+                        volumes: new Array(120).fill(80),
+                        timestamps: new Array(120).fill(Date.now()),
+                        colors: new Array(120).fill(1),
+                        bodySizes: new Array(120).fill(300)
+                    },
+                    studies: {
+                        sma9: new Array(120).fill(50400),
+                        sma12: new Array(120).fill(50350),
+                        sma21: new Array(120).fill(50300),
+                        ema9: new Array(120).fill(50450),
+                        ema12: new Array(120).fill(50400),
+                        ema21: new Array(120).fill(50350),
+                        rsi14: new Array(120).fill(50)
+                    },
+                    patterns: {
+                        single: new Array(119).fill(0),
+                        sliding: new Array(118).fill(0)
+                    },
+                    global: {
+                        candleDuration: 1,
+                        windowSize: 120,
+                        grossProfitTarget: 0.7,
+                        grossStopLoss: 0.4,
+                        positionSize: 100,
+                        fees: 0.2
+                    }
+                },
                 outcomes: {
-                    buy: 0.0, // Neither hit target
-                    sell: 0.0
+                    grossBuy: 0.0, // Neither hit target
+                    grossSell: 0.0
                 }
             }
         ]
@@ -177,8 +273,40 @@ async function example () {
         // Wait for training to complete
         await new Promise(resolve => setTimeout(resolve, 3000))
 
-        // Make a prediction
-        const testFeatures = new Array(1559).fill(0.5)
+        // Make a prediction with nested features
+        const testFeatures = {
+            candles: {
+                opens: new Array(120).fill(50300),
+                highs: new Array(120).fill(50600),
+                lows: new Array(120).fill(50000),
+                closes: new Array(120).fill(50400),
+                volumes: new Array(120).fill(90),
+                timestamps: new Array(120).fill(Date.now()),
+                colors: new Array(120).fill(1),
+                bodySizes: new Array(120).fill(400)
+            },
+            studies: {
+                sma9: new Array(120).fill(50300),
+                sma12: new Array(120).fill(50250),
+                sma21: new Array(120).fill(50200),
+                ema9: new Array(120).fill(50350),
+                ema12: new Array(120).fill(50300),
+                ema21: new Array(120).fill(50250),
+                rsi14: new Array(120).fill(52)
+            },
+            patterns: {
+                single: new Array(119).fill(0),
+                sliding: new Array(118).fill(0)
+            },
+            global: {
+                candleDuration: 1,
+                windowSize: 120,
+                grossProfitTarget: 0.7,
+                grossStopLoss: 0.4,
+                positionSize: 100,
+                fees: 0.2
+            }
+        }
         await client.makePrediction(testFeatures)
 
         // Save the model
