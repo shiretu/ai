@@ -25,8 +25,9 @@ class TradingTrainingServer {
         batchSize: 32,
         epochs: 1, // Single epoch per dataset for real-time training
         validationSplit: 0.0, // No validation split for streaming
-        modelName: 'myFirstModel'
-    } /** @type {{learningRate:number,batchSize:number,epochs:number,validationSplit:number,modelName:string}} */
+        modelName: 'myFirstModel',
+        debug: false // Debug flag for training stats logging
+    } /** @type {{learningRate:number,batchSize:number,epochs:number,validationSplit:number,modelName:string,debug:boolean}} */
 
     #architecture = null /** @type {any} */
     #modelRootPath = path.resolve(path.join(__dirname, '..', 'models', this.#config.modelName)) /** @type {string} */
@@ -36,10 +37,15 @@ class TradingTrainingServer {
 
     /**
      * Create a new instance of the TradingTrainingServer
+     * @param {object} options - Configuration options
+     * @param {boolean} options.debug - Enable debug logging
      * @returns {Promise<TradingTrainingServer>}
      */
-    static async create () {
+    static async create (options = {}) {
         const result = new TradingTrainingServer()
+        if (options.debug) {
+            result.#config.debug = true
+        }
         await result.#initialize()
         return result
     }
@@ -166,6 +172,11 @@ class TradingTrainingServer {
 
             // Update stats
             this.#updateTrainingStats(samples.length, history.history.loss[0])
+
+            // Debug logging if enabled
+            if (this.#config.debug) {
+                console.log(`[DEBUG] Training completed: ${samples.length} samples, loss: ${history.history.loss[0].toFixed(6)}, mae: ${history.history.mae[0].toFixed(6)}, total: ${this.#trainingStats.totalSamples}`)
+            }
 
             // Training completed
             const duration = Date.now() - startTime
@@ -384,7 +395,14 @@ if (require.main === module) {
             console.log('\nShutting down training server...')
             process.exit(0)
         })
-        await (TradingTrainingServer.create().catch(console.error))
+
+        // Check for --debug flag in command line arguments
+        const debug = process.argv.includes('--debug')
+        if (debug) {
+            console.log('[DEBUG] Debug mode enabled - training stats will be logged')
+        }
+
+        await (TradingTrainingServer.create({ debug }).catch(console.error))
     }
     main()
 }

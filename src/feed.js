@@ -90,6 +90,7 @@ const work = async () => {
     }
     console.log(JSON.stringify(await doRequest(ws, { type: 'stats' })))
     console.log(await doRequest(ws, { type: 'save' }))
+    ws.close()
 }
 
 work()

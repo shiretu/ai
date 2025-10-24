@@ -5,6 +5,7 @@
   "type": "commonjs",
   "scripts": {
     "train": "node src/train.js",
+    "train:debug": "node src/train.js --debug",
     "feed": "node src/feed.js"
   },
   "dependencies": {
