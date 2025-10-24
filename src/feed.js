@@ -13,13 +13,13 @@ class TestClient {
     }
 
     async run () {
-        console.log('🚀 Starting simple test client...')
+        console.log('Starting simple test client...')
 
         // Connect to server
         this.ws = new WebSocket('ws://localhost:8080')
 
         this.ws.on('open', () => {
-            console.log('✅ Connected to training server')
+            console.log('Connected to training server')
             this.start()
         })
 
@@ -29,12 +29,12 @@ class TestClient {
         })
 
         this.ws.on('error', (error) => {
-            console.error('❌ WebSocket error:', error)
+            console.error('WebSocket error:', error)
             process.exit(1)
         })
 
         this.ws.on('close', () => {
-            console.log('🔌 Connection closed')
+            console.log('Connection closed')
             process.exit(0)
         })
     }
@@ -42,20 +42,20 @@ class TestClient {
     handleMessage (message) {
         switch (message.type) {
             case 'connected':
-                console.log(`📊 Server ready with ${message.modelParams} parameters`)
+                console.log(`Server ready with ${message.modelParams} parameters`)
                 break
 
             case 'training_started':
-                console.log(`🎯 Training sample ${this.sampleCount + 1}/${this.targetSamples}...`)
+                console.log(`Training sample ${this.sampleCount + 1}/${this.targetSamples}...`)
                 break
 
             case 'training_progress':
-                console.log(`   📈 Epoch ${message.epoch}: Loss=${message.loss.toFixed(6)}`)
+                console.log(`   Epoch ${message.epoch}: Loss=${message.loss.toFixed(6)}`)
                 break
 
             case 'training_completed':
                 this.sampleCount++
-                console.log(`   ✅ Sample ${this.sampleCount} completed - Loss: ${message.loss.toFixed(6)}`)
+                console.log(`   Sample ${this.sampleCount} completed - Loss: ${message.loss.toFixed(6)}`)
 
                 if (this.sampleCount < this.targetSamples) {
                     // Send next sample
@@ -67,29 +67,29 @@ class TestClient {
                 break
 
             case 'error':
-                console.error(`❌ Server error: ${message.message}`)
+                console.error(`Server error: ${message.message}`)
                 this.ws.close()
                 break
 
             default:
                 if (message.totalSamples !== undefined) {
-                    console.log(`📊 Stats: ${message.totalSamples} total samples, avg loss: ${message.averageLoss.toFixed(6)}`)
+                    console.log(`Stats: ${message.totalSamples} total samples, avg loss: ${message.averageLoss.toFixed(6)}`)
                 } else if (message.path) {
-                    console.log(`💾 Model saved to: ${message.path}`)
+                    console.log(`Model saved to: ${message.path}`)
                     this.ws.close()
                 } else {
-                    console.log('📨 Response:', message.type || JSON.stringify(message))
+                    console.log('Response:', message.type || JSON.stringify(message))
                 }
         }
     }
 
     async start () {
-        console.log('\n📊 Getting initial stats...')
+        console.log('\nGetting initial stats...')
         this.ws.send(JSON.stringify({ type: 'stats' }))
 
         // Wait a bit then start sending samples
         setTimeout(() => {
-            console.log('\n🎯 Starting to send 3 training samples...')
+            console.log('\nStarting to send 3 training samples...')
             this.sendNextSample()
         }, 500)
     }
@@ -150,11 +150,11 @@ class TestClient {
     }
 
     finalize () {
-        console.log('\n📊 Getting final stats...')
+        console.log('\nGetting final stats...')
         this.ws.send(JSON.stringify({ type: 'stats' }))
 
         setTimeout(() => {
-            console.log('\n💾 Saving model...')
+            console.log('\nSaving model...')
             this.ws.send(JSON.stringify({ type: 'save' }))
         }, 500)
     }

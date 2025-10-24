@@ -40,7 +40,7 @@ class TradingTrainingServer {
      * Initialize the training server
      */
     async initialize () {
-        console.log('🚀 Initializing Trading Training Server...')
+        console.log('Initializing Trading Training Server...')
 
         // Load or create model
         await this.loadOrCreateModel()
@@ -48,9 +48,9 @@ class TradingTrainingServer {
         // Start WebSocket server
         this.startWebSocketServer()
 
-        console.log(`✅ Training server running on port ${this.port}`)
-        console.log(`📊 Model loaded with ${this.model.countParams()} parameters`)
-        console.log('🔗 Waiting for WebSocket connections...')
+        console.log(`Training server running on port ${this.port}`)
+        console.log(`Model loaded with ${this.model.countParams()} parameters`)
+        console.log('Waiting for WebSocket connections...')
     }
 
     /**
@@ -65,21 +65,21 @@ class TradingTrainingServer {
             // tf.loadLayersModel() automatically loads both model.json and weights.bin
             // from the directory path when given the model.json file path
             if (await this.modelExists()) {
-                console.log('📁 Loading existing model from disk...')
+                console.log('Loading existing model from disk...')
                 console.log(`   Model: ${this.tfModelPath}`)
                 this.model = await tf.loadLayersModel(`file://${this.tfModelPath}`)
-                console.log('✅ Existing model loaded successfully')
+                console.log('Existing model loaded successfully')
             } else {
-                console.log('🏗️  Creating new model...')
+                console.log('Creating new model...')
                 this.model = this.createModel()
-                console.log('✅ New model created successfully')
+                console.log('New model created successfully')
             }
 
             // Compile model for training
             this.compileModel()
         } catch (error) {
-            console.error('❌ Error loading model:', error)
-            console.log('🏗️  Creating fallback model...')
+            console.error('Error loading model:', error)
+            console.log('Creating fallback model...')
             this.model = this.createModel()
             this.compileModel()
         }
@@ -91,9 +91,9 @@ class TradingTrainingServer {
     async loadArchitecture () {
         try {
             this.architecture = JSON.parse(await fs.readFile(this.architecturePath, 'utf8'))
-            console.log(`📐 Architecture loaded: ${this.architecture.input_features} → ${this.architecture.output_features}`)
+            console.log(`Architecture loaded: ${this.architecture.input_features} features -> ${this.architecture.output_features} outputs`)
         } catch (error) {
-            console.error(`❌ FATAL: ${this.architecturePath} is required but could not be loaded`)
+            console.error(`FATAL: ${this.architecturePath} is required but could not be loaded`)
             console.error(`   Path: ${this.architecturePath}`)
             console.error(`   Error: ${error.message}`)
             throw new Error(`${this.architecturePath} is required - server cannot start without it`)
@@ -119,7 +119,7 @@ class TradingTrainingServer {
      * Create model from loaded architecture JSON
      */
     createModel () {
-        console.log('🧠 Building neural network architecture...')
+        console.log('Building neural network architecture...')
         const layerFactory = {
             dense: (config, isFirstLayer) => {
                 const layerConfig = {
@@ -146,7 +146,7 @@ class TradingTrainingServer {
             layers: this.architecture.layers.map((layerConfig, index) => {
                 const factoryFunc = layerFactory[layerConfig.type]
                 if (!factoryFunc) {
-                    console.warn(`⚠️  Unknown layer type: ${layerConfig.type}, skipping`)
+                    console.warn(`WARNING: Unknown layer type: ${layerConfig.type}, skipping`)
                     return null
                 }
                 return factoryFunc(layerConfig, index === 0)
@@ -191,7 +191,7 @@ class TradingTrainingServer {
         this.wss = new WebSocket.Server({ port: this.port })
 
         this.wss.on('connection', (ws) => {
-            console.log('🔗 New WebSocket connection established')
+            console.log('New WebSocket connection established')
 
             ws.on('message', async (data) => {
                 try {
@@ -206,7 +206,7 @@ class TradingTrainingServer {
                         }
                     })
                 } catch (error) {
-                    console.error('❌ Error processing training data:', error)
+                    console.error('Error processing training data:', error)
                     ws.send(JSON.stringify({
                         type: 'error',
                         message: error.message
@@ -215,7 +215,7 @@ class TradingTrainingServer {
             })
 
             ws.on('close', () => {
-                console.log('🔌 WebSocket connection closed')
+                console.log('WebSocket connection closed')
             })
 
             // Send welcome message
@@ -262,7 +262,7 @@ class TradingTrainingServer {
      * Train on a single sample
      */
     async trainOnSample (sample, callback) {
-        console.log('🎯 Training on single sample')
+        console.log('Training on single sample')
 
         // Prepare training data
         const { features, labels } = this.prepareSampleData(sample)
@@ -389,12 +389,12 @@ class TradingTrainingServer {
      */
     async saveModel (ws) {
         try {
-            console.log('💾 Saving model to disk...')
+            console.log('Saving model to disk...')
             console.log(`   Target: ${this.modelRootPath}/`)
             // model.save() will create both model.json and weights.bin in the directory
             await fs.mkdir(this.tfModelFolder, { recursive: true })
             await this.model.save(`file://${this.tfModelFolder}`)
-            console.log('✅ Model saved successfully')
+            console.log('Model saved successfully')
             console.log(`   Created: ${this.tfModelPath}`)
 
             return {
@@ -467,7 +467,7 @@ async function startServer () {
 
 // Handle graceful shutdown
 process.on('SIGINT', () => {
-    console.log('\n🛑 Shutting down training server...')
+    console.log('\nShutting down training server...')
     process.exit(0)
 })
 
