@@ -1,4 +1,3 @@
-````markdown
 # Real-Time Trading Neural Network
 
 A production-ready neural network system for real-time trading predictions. Features WebSocket-based training, persistent model storage, and high-performance batch processing for live trading applications.
