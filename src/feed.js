@@ -5,110 +5,38 @@
 
 const WebSocket = require('ws')
 
-class TestClient {
-    constructor () {
-        this.ws = null
-        this.sampleCount = 0
-        this.targetSamples = 3
-    }
+const getWs = async () => {
+    const ws = new WebSocket('ws://localhost:8080')
+    return new Promise((resolve, reject) => {
+        ws.on('open', () => resolve(ws))
+        ws.once('error', reject)
+    })
+}
 
-    async run () {
-        console.log('Starting simple test client...')
-
-        // Connect to server
-        this.ws = new WebSocket('ws://localhost:8080')
-
-        this.ws.on('open', () => {
-            console.log('Connected to training server')
-            this.start()
-        })
-
-        this.ws.on('message', (data) => {
+const doRequest = (ws, request) => {
+    return new Promise((resolve, reject) => {
+        ws.once('message', (data) => {
             const message = JSON.parse(data.toString())
-            this.handleMessage(message)
+            resolve(message)
         })
+        ws.once('error', reject)
+        ws.send(JSON.stringify(request))
+    })
+}
 
-        this.ws.on('error', (error) => {
-            console.error('WebSocket error:', error)
-            process.exit(1)
-        })
-
-        this.ws.on('close', () => {
-            console.log('Connection closed')
-            process.exit(0)
-        })
+let sampleNum = 0
+const createTrainRequest = (samplesCount) => {
+    const result = {
+        type: 'train',
+        samples: []
     }
-
-    handleMessage (message) {
-        switch (message.type) {
-            case 'connected':
-                console.log(`Server ready with ${message.modelParams} parameters`)
-                break
-
-            case 'training_started':
-                console.log(`Training sample ${this.sampleCount + 1}/${this.targetSamples}...`)
-                break
-
-            case 'training_progress':
-                console.log(`   Epoch ${message.epoch}: Loss=${message.loss.toFixed(6)}`)
-                break
-
-            case 'training_completed':
-                this.sampleCount++
-                console.log(`   Sample ${this.sampleCount} completed - Loss: ${message.loss.toFixed(6)}`)
-
-                if (this.sampleCount < this.targetSamples) {
-                    // Send next sample
-                    setTimeout(() => this.sendNextSample(), 100)
-                } else {
-                    // All samples sent, get final stats and save
-                    setTimeout(() => this.finalize(), 500)
-                }
-                break
-
-            case 'error':
-                console.error(`Server error: ${message.message}`)
-                this.ws.close()
-                break
-
-            default:
-                if (message.totalSamples !== undefined) {
-                    console.log(`Stats: ${message.totalSamples} total samples, avg loss: ${message.averageLoss.toFixed(6)}`)
-                } else if (message.path) {
-                    console.log(`Model saved to: ${message.path}`)
-                    this.ws.close()
-                } else {
-                    console.log('Response:', message.type || JSON.stringify(message))
-                }
-        }
-    }
-
-    async start () {
-        console.log('\nGetting initial stats...')
-        this.ws.send(JSON.stringify({ type: 'stats' }))
-
-        // Wait a bit then start sending samples
-        setTimeout(() => {
-            console.log('\nStarting to send 3 training samples...')
-            this.sendNextSample()
-        }, 500)
-    }
-
-    sendNextSample () {
-        const sampleData = this.createSample(this.sampleCount + 1)
-
-        this.ws.send(JSON.stringify({
-            type: 'train',
-            sample: sampleData
-        }))
-    }
-
-    createSample (sampleNum) {
+    for (let i = 0; i < samplesCount; i++) {
+        sampleNum++
         // Create hardcoded sample data with slight variations
         const basePrice = 50000 + (sampleNum * 100)
         const variation = sampleNum * 0.1
 
-        return {
+        result.samples.push({
             features: {
                 candles: {
                     opens: new Array(120).fill(basePrice),
@@ -146,20 +74,22 @@ class TestClient {
                 grossBuy: variation + (sampleNum === 1 ? 0.8 : sampleNum === 2 ? -0.3 : 0.0),
                 grossSell: variation + (sampleNum === 1 ? -0.2 : sampleNum === 2 ? 0.6 : 0.0)
             }
-        }
+        })
     }
-
-    finalize () {
-        console.log('\nGetting final stats...')
-        this.ws.send(JSON.stringify({ type: 'stats' }))
-
-        setTimeout(() => {
-            console.log('\nSaving model...')
-            this.ws.send(JSON.stringify({ type: 'save' }))
-        }, 500)
-    }
+    return result
 }
 
-// Run the test client
-const client = new TestClient()
-client.run().catch(console.error)
+const work = async () => {
+    const ws = await getWs()
+    console.log(await doRequest(ws, createTrainRequest(1)))
+    console.log(await doRequest(ws, createTrainRequest(10)))
+    console.log(await doRequest(ws, createTrainRequest(100)))
+    console.log(await doRequest(ws, createTrainRequest(1000)))
+    for (let i = 0; i < 4; i++) {
+        console.log(await doRequest(ws, createTrainRequest(5000)))
+    }
+    console.log(JSON.stringify(await doRequest(ws, { type: 'stats' })))
+    console.log(await doRequest(ws, { type: 'save' }))
+}
+
+work()

@@ -122,7 +122,6 @@ class TradingTrainingServer {
                     ws.send(JSON.stringify({ type: 'error', message: error.message }))
                 }
             })
-            ws.send(JSON.stringify({ type: 'connected', message: 'Training server ready', modelParams: this.#model.countParams(), trainingStats: this.#trainingStats }))
         })
         console.log(`Training server running on port ${this.#port}`)
     }
@@ -131,7 +130,7 @@ class TradingTrainingServer {
         try {
             switch (message.type) {
                 case 'train':
-                    await this.#trainOnSample(message.sample, callback)
+                    await this.#train(message.samples, callback)
                     break
 
                 case 'save':
@@ -154,27 +153,26 @@ class TradingTrainingServer {
         }
     }
 
-    async #trainOnSample (sample, callback) {
-        const { features, labels } = this.#prepareTensors(sample)
+    async #train (samples, callback) {
+        const { features, labels } = this.#prepareTensors(samples)
         const startTime = Date.now()
 
         try {
-            // Train the model
             const history = await this.#model.fit(features, labels, {
                 epochs: this.#config.epochs,
-                batchSize: 1,
+                batchSize: samples.length,
                 verbose: 0
             })
 
             // Update stats
-            this.#updateTrainingStats(1, history.history.loss[0])
+            this.#updateTrainingStats(samples.length, history.history.loss[0])
 
             // Training completed
             const duration = Date.now() - startTime
 
             callback(null, {
                 type: 'training_completed',
-                samples: 1,
+                samples: samples.length,
                 loss: history.history.loss[0],
                 mae: history.history.mae[0],
                 duration,
@@ -223,13 +221,13 @@ class TradingTrainingServer {
         ]
     }
 
-    #prepareTensors (sample) {
-        const flatFeatures = this.#makeFlat(sample.features)
-        const labels = [sample.outcomes.grossBuy, sample.outcomes.grossSell]
+    #prepareTensors (samples) {
+        const features = samples.map(sample => this.#makeFlat(sample.features))
+        const labels = samples.map(sample => [sample.outcomes.grossBuy, sample.outcomes.grossSell])
 
         return {
-            features: tf.tensor2d([flatFeatures]),
-            labels: tf.tensor2d([labels])
+            features: tf.tensor2d(features),
+            labels: tf.tensor2d(labels)
         }
     }
 
@@ -294,11 +292,84 @@ class TradingTrainingServer {
     }
 
     #getStats (ws) {
+        // Get model layer information
+        const layers = this.#model.layers.map((layer, index) => ({
+            index,
+            name: layer.name,
+            className: layer.getClassName(),
+            inputShape: layer.inputSpec ? layer.inputSpec.map(spec => spec.shape) : null,
+            outputShape: layer.outputShape,
+            trainableParams: layer.countParams(),
+            trainable: layer.trainable
+        }))
+
+        // Calculate total trainable vs non-trainable parameters
+        const trainableParams = this.#model.layers.reduce((sum, layer) =>
+            sum + (layer.trainable ? layer.countParams() : 0), 0)
+        const nonTrainableParams = this.#model.countParams() - trainableParams
+
+        // Get optimizer state
+        const optimizer = this.#model.optimizer
+        let iterations = 0
+        try {
+            if (optimizer && optimizer.iterations && typeof optimizer.iterations.dataSync === 'function') {
+                iterations = optimizer.iterations.dataSync()[0]
+            }
+        } catch (error) {
+            // Fallback if dataSync doesn't work
+            iterations = 'N/A'
+        }
+
+        const optimizerInfo = {
+            className: optimizer ? optimizer.getClassName() : 'Not compiled',
+            learningRate: optimizer && optimizer.learningRate ? optimizer.learningRate : null,
+            iterations
+        }
+
+        // Calculate training efficiency metrics
+        const trainingEfficiency = this.#trainingStats.totalSamples > 0
+            ? {
+                samplesPerSecond: this.#trainingStats.lastUpdate
+                    ? this.#trainingStats.totalSamples / ((new Date(this.#trainingStats.lastUpdate) - new Date(this.#trainingStats.trainingStarted)) / 1000)
+                    : 0,
+                avgLoss: this.#trainingStats.lastLoss,
+                isLearning: this.#trainingStats.totalSamples > 1, // Basic check if we have multiple samples
+                lossImprovement: 'N/A' // Could track this with loss history
+            }
+            : null
+
         return {
             type: 'stats',
-            stats: this.#trainingStats,
-            modelParams: this.#model.countParams(),
-            config: this.#config
+            timestamp: new Date().toISOString(),
+
+            // Basic training stats
+            training: this.#trainingStats,
+
+            // Model architecture details
+            model: {
+                totalParams: this.#model.countParams(),
+                trainableParams,
+                nonTrainableParams,
+                layerCount: this.#model.layers.length,
+                compiled: !!this.#model.optimizer,
+                layers
+            },
+
+            // Optimizer information
+            optimizer: optimizerInfo,
+
+            // Training efficiency
+            efficiency: trainingEfficiency,
+
+            // Configuration
+            config: this.#config,
+
+            // Architecture metadata
+            architecture: {
+                name: this.#architecture?.name || 'Unknown',
+                inputFeatures: this.#architecture?.input_features || 0,
+                outputFeatures: this.#architecture?.output_features || 0
+            }
         }
     }
 }
