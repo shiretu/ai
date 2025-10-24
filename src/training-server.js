@@ -5,6 +5,7 @@
 
 const WebSocket = require('ws')
 const tf = require('@tensorflow/tfjs')
+require('@tensorflow/tfjs-node') // Enable Node.js backend for file operations
 const fs = require('fs').promises
 const path = require('path')
 
@@ -26,8 +27,13 @@ class TradingTrainingServer {
             batchSize: 32,
             epochs: 1, // Single epoch per dataset for real-time training
             validationSplit: 0.0, // No validation split for streaming
-            modelSavePath: './models/trading-model.json'
+            modelName: 'myFirstModel'
         }
+
+        this.modelRootPath = path.resolve(path.join(__dirname, '..', 'models', this.config.modelName))
+        this.architecturePath = path.join(this.modelRootPath, 'architecture.json')
+        this.tfModelFolder = path.join(this.modelRootPath, 'tf')
+        this.tfModelPath = path.join(this.tfModelFolder, 'model.json')
     }
 
     /**
@@ -56,9 +62,12 @@ class TradingTrainingServer {
             await this.loadArchitecture()
 
             // Try to load existing model
+            // tf.loadLayersModel() automatically loads both model.json and weights.bin
+            // from the directory path when given the model.json file path
             if (await this.modelExists()) {
                 console.log('📁 Loading existing model from disk...')
-                this.model = await tf.loadLayersModel(`file://${path.resolve(this.config.modelSavePath)}`)
+                console.log(`   Model: ${this.tfModelPath}`)
+                this.model = await tf.loadLayersModel(`file://${this.tfModelPath}`)
                 console.log('✅ Existing model loaded successfully')
             } else {
                 console.log('🏗️  Creating new model...')
@@ -80,26 +89,26 @@ class TradingTrainingServer {
      * Load network architecture from JSON file
      */
     async loadArchitecture () {
-        const architecturePath = path.resolve('./network_architecture.json')
-
         try {
-            const architectureData = await fs.readFile(architecturePath, 'utf8')
-            this.architecture = JSON.parse(architectureData)
+            this.architecture = JSON.parse(await fs.readFile(this.architecturePath, 'utf8'))
             console.log(`📐 Architecture loaded: ${this.architecture.input_features} → ${this.architecture.output_features}`)
         } catch (error) {
-            console.error('❌ FATAL: network_architecture.json is required but could not be loaded')
-            console.error(`   Path: ${architecturePath}`)
+            console.error(`❌ FATAL: ${this.architecturePath} is required but could not be loaded`)
+            console.error(`   Path: ${this.architecturePath}`)
             console.error(`   Error: ${error.message}`)
-            throw new Error('network_architecture.json is required - server cannot start without it')
+            throw new Error(`${this.architecturePath} is required - server cannot start without it`)
         }
     }
 
     /**
-     * Check if model file exists
+     * Check if model files exist
+     * TensorFlow.js saves/loads models as a pair: model.json + weights.bin
+     * Both files must be present for successful model loading
      */
     async modelExists () {
         try {
-            await fs.access(this.config.modelSavePath)
+            // Check both model.json and weights.bin files exist
+            await fs.access(this.tfModelPath)
             return true
         } catch {
             return false
@@ -374,16 +383,23 @@ class TradingTrainingServer {
 
     /**
      * Save model to disk
+     * TensorFlow.js model.save() creates two files in the target directory:
+     * - model.json: Contains the model architecture and metadata
+     * - weights.bin: Contains the trained model weights
      */
     async saveModel (ws) {
         try {
             console.log('💾 Saving model to disk...')
-            await this.model.save(`file://${path.resolve(this.config.modelSavePath)}`)
+            console.log(`   Target: ${this.modelRootPath}/`)
+            // model.save() will create both model.json and weights.bin in the directory
+            await fs.mkdir(this.tfModelFolder, { recursive: true })
+            await this.model.save(`file://${this.tfModelFolder}`)
             console.log('✅ Model saved successfully')
+            console.log(`   Created: ${this.tfModelPath}`)
 
             return {
                 type: 'model_saved',
-                path: this.config.modelSavePath,
+                path: this.modelRootPath,
                 timestamp: new Date().toISOString()
             }
         } catch (error) {
